@@ -6,6 +6,9 @@ from agent1 import train as train_dqn
 from agent2 import train as train_pg
 from agent3 import train as train_ppo
 from agent4 import train as train_sac
+from agent5 import train as train_dueling_dqn 
+from agent6 import train as train_double_dqn    
+
 
 class AlgorithmTrainer:
     def __init__(self, train_function, name):
@@ -120,9 +123,11 @@ def run_comparison(num_episodes=100):
     results = []
     algorithms = [
         ("DQN", lambda n, cb: AlgorithmTrainer(train_dqn, "DQN").train(n)),
-        ("A3C", lambda n, cb: AlgorithmTrainer(train_a3c, "A3C").train(n)),
+        ("Dueling DQN", lambda n, cb: AlgorithmTrainer(train_dueling_dqn, "Dueling DQN").train(n)),
+        ("Double DQN", lambda n, cb: AlgorithmTrainer(train_double_dqn, "Double DQN").train(n)),
         ("Policy Gradient", lambda n, cb: AlgorithmTrainer(train_pg, "Policy Gradient").train(n)),
         ("PPO", lambda n, cb: AlgorithmTrainer(train_ppo, "PPO").train(n)),
+        ("A3C", lambda n, cb: AlgorithmTrainer(train_a3c, "A3C").train(n)),
         ("SAC", lambda n, cb: AlgorithmTrainer(train_sac, "SAC").train(n))
     ]
     
