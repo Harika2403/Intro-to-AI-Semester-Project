@@ -1,17 +1,11 @@
-# Import the required libraries
-
 import pygame
 import random
 from enum import Enum
 from collections import namedtuple
 
-# Now initialize the pygame and font
-
 pygame.init()
 font = pygame.font.Font('arial.ttf', 25)
 #font = pygame.font.SysFont('arial', 25)
-
-#Define the directions  and coordinates useful for snake and food locations.
 
 class Direction(Enum):
     RIGHT = 1
@@ -29,7 +23,7 @@ BLUE2 = (0, 100, 255)
 BLACK = (0,0,0)
 
 BLOCK_SIZE = 20
-SPEED = 5
+SPEED = 20
 
 class SnakeGame:
     
@@ -59,11 +53,9 @@ class SnakeGame:
         self.food = Point(x, y)
         if self.food in self.snake:
             self._place_food()
-
-#MAIN LOGIC FOR THE GAME
-      
+        
     def play_step(self):
-        # 1. Handle Keyboard Input
+        # 1. collect user input
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -78,28 +70,27 @@ class SnakeGame:
                 elif event.key == pygame.K_DOWN:
                     self.direction = Direction.DOWN
         
-        # 2. Move Snake
+        # 2. move
         self._move(self.direction) # update the head
         self.snake.insert(0, self.head)
         
-        # 3. Check for Collision
+        # 3. check if game over
         game_over = False
         if self._is_collision():
             game_over = True
             return game_over, self.score
             
-        # 4. Check if Food is Eaten
+        # 4. place new food or just move
         if self.head == self.food:
             self.score += 1
             self._place_food()
         else:
             self.snake.pop()
         
-        # 5. Update UI and Wait
+        # 5. update ui and clock
         self._update_ui()
         self.clock.tick(SPEED)
-
-        # 6. Return game over and score
+        # 6. return game over and score
         return game_over, self.score
     
     def _is_collision(self):
@@ -125,7 +116,7 @@ class SnakeGame:
         self.display.blit(text, [0, 0])
         pygame.display.flip()
         
-    def _move(self, direction): #MOVE DIRECTION
+    def _move(self, direction):
         x = self.head.x
         y = self.head.y
         if direction == Direction.RIGHT:
@@ -138,8 +129,7 @@ class SnakeGame:
             y -= BLOCK_SIZE
             
         self.head = Point(x, y)
-
-#GAME LOOP          
+            
 
 if __name__ == '__main__':
     game = SnakeGame()
@@ -151,7 +141,7 @@ if __name__ == '__main__':
         if game_over == True:
             break
         
-    print('Final Score', score) #Final Output
+    print('Final Score', score)
         
         
     pygame.quit()

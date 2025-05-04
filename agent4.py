@@ -3,7 +3,7 @@ import random
 import numpy as np
 from collections import deque
 from game import SnakeGameAI, Direction, Point
-from model2 import PolicyNetwork, PolicyGradientTrainer
+from model4 import SACActor, SACCritic, SACTrainer
 from helper import plot
 import time
 from metrics import MetricsTracker
@@ -11,16 +11,24 @@ from metrics import MetricsTracker
 MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
 LR = 0.001
-GAMMA = 0.9
+GAMMA = 0.99
+TAU = 0.005
+ALPHA = 0.2
 
-class PolicyGradientAgent:
+class SACAgent:
     def __init__(self):
         self.n_games = 0
-        self.model = PolicyNetwork(11, 256, 3)
-        self.trainer = PolicyGradientTrainer(self.model, lr=LR, gamma=GAMMA)
+        input_size = 11
+        hidden_size = 256
+        output_size = 3
+        
+        self.actor = SACActor(input_size, hidden_size, output_size)
+        self.critic = SACCritic(input_size + output_size, hidden_size)
+        self.trainer = SACTrainer(self.actor, self.critic, lr=LR, gamma=GAMMA, tau=TAU, alpha=ALPHA)
         self.memory = deque(maxlen=MAX_MEMORY)
         
     def get_state(self, game):
+        # Same state representation as before
         head = game.snake[0]
         point_l = Point(head.x - 20, head.y)
         point_r = Point(head.x + 20, head.y)
@@ -66,11 +74,26 @@ class PolicyGradientAgent:
 
         return np.array(state, dtype=int)
     
-    def get_action(self, state):
-        return self.trainer.select_action(state)
+    def remember(self, state, action, reward, next_state, done):
+        self.memory.append((state, action, reward, next_state, done))
     
-    def remember(self, reward):
-        self.trainer.rewards.append(reward)
+    def get_action(self, state):
+        state_tensor = torch.FloatTensor(state).unsqueeze(0)
+        with torch.no_grad():
+            action, _, mean = self.actor.sample(state_tensor)
+        return action.squeeze(0).numpy()
+    
+    def train_long_memory(self):
+        if len(self.memory) > BATCH_SIZE:
+            mini_sample = random.sample(self.memory, BATCH_SIZE)
+        else:
+            mini_sample = self.memory
+
+        states, actions, rewards, next_states, dones = zip(*mini_sample)
+        self.trainer.update(states, actions, rewards, next_states, dones)
+    
+    def train_short_memory(self, state, action, reward, next_state, done):
+        self.remember(state, action, reward, next_state, done)
 
 def train(num_episodes=None, metrics_callback=None):
     metrics = MetricsTracker()
@@ -80,7 +103,7 @@ def train(num_episodes=None, metrics_callback=None):
     record = 0
     start_time = time.time()
     
-    agent = PolicyGradientAgent()
+    agent = SACAgent()
     game = SnakeGameAI()
     
     while True:
@@ -88,32 +111,33 @@ def train(num_episodes=None, metrics_callback=None):
         state_old = agent.get_state(game)
 
         # get move
-        action = agent.get_action(state_old)
+        action_probs = agent.get_action(state_old)
+        action = np.argmax(action_probs)
         final_move = [0, 0, 0]
         final_move[action] = 1
 
-        # perform move and get reward
+        # perform move and get new state
         reward, done, score = game.play_step(final_move)
-        
-        # store reward
-        agent.remember(reward)
+        state_new = agent.get_state(game)
+
+        # train short memory
+        agent.train_short_memory(state_old, action_probs, reward, state_new, done)
 
         if done:
-            # train at the end of episode
             episode_length = game.frame_iteration
             metrics.record_episode(score, episode_length)
             
-            # Call metrics callback if provided
             if metrics_callback:
                 metrics_callback(score, episode_length)
             
             game.reset()
             agent.n_games += 1
-            agent.trainer.finish_episode()
+            agent.train_long_memory()
 
             if score > record:
                 record = score
-                agent.model.save()
+                torch.save(agent.actor.state_dict(), './model/sac_actor.pth')
+                torch.save(agent.critic.state_dict(), './model/sac_critic.pth')
 
             print('Game', agent.n_games, 'Score', score, 'Record:', record)
 
@@ -121,40 +145,15 @@ def train(num_episodes=None, metrics_callback=None):
             total_score += score
             mean_score = total_score / agent.n_games
             plot_mean_scores.append(mean_score)
-            plot_scores.append(score)
-
-            window_size = 100
-            if len(plot_scores) >= window_size:
-                moving_average = np.mean(plot_scores[-window_size:])
-                plot_mean_scores.append(moving_average)
             
             if agent.n_games % 100 == 0:
-                metrics.plot_metrics("Policy Gradient")
+                metrics.plot_metrics("SAC")
                 print("Summary stats:", metrics.get_summary_stats())
 
             plot(plot_scores, plot_mean_scores)
             
-            # Check if we've reached the target number of episodes
             if num_episodes and agent.n_games >= num_episodes:
                 break
 
-def train_for_comparison(num_episodes):
-    """Special training function for comparison that returns metrics"""
-    metrics = {
-        'scores': [],
-        'episode_lengths': [],
-        'timestamps': []
-    }
-    start_time = time.time()
-    
-    def callback(score, length):
-        metrics['scores'].append(score)
-        metrics['episode_lengths'].append(length)
-        metrics['timestamps'].append(time.time() - start_time)
-    
-    train(num_episodes=num_episodes, metrics_callback=callback)
-    return metrics
-
 if __name__ == '__main__':
-    train()  # Regular training
-    # For comparison: train_for_comparison(1000)
+    train()

@@ -24,11 +24,11 @@ BLUE2 = (0, 100, 255)
 BLACK = (0,0,0)
 
 BLOCK_SIZE = 20
-SPEED = 40 #We can provide the speed based on how quick the training needs to be done
+SPEED = 40
 
 class SnakeGameAI:
 
-    def __init__(self, w=640, h=480): #Sets up window size, game title, and calls reset() to initialize the game state.
+    def __init__(self, w=640, h=480):
         self.w = w
         self.h = h
         # init display
@@ -39,7 +39,7 @@ class SnakeGameAI:
 
 
     def reset(self):
-        # Sets direction and starting body
+        # init game state
         self.direction = Direction.RIGHT
 
         self.head = Point(self.w/2, self.h/2)
@@ -49,54 +49,53 @@ class SnakeGameAI:
 
         self.score = 0
         self.food = None
-        self._place_food() #Places initial food
+        self._place_food()
         self.frame_iteration = 0
 
-    # Food Placement
+
     def _place_food(self):
         x = random.randint(0, (self.w-BLOCK_SIZE )//BLOCK_SIZE )*BLOCK_SIZE
         y = random.randint(0, (self.h-BLOCK_SIZE )//BLOCK_SIZE )*BLOCK_SIZE
         self.food = Point(x, y)
-        if self.food in self.snake: #If food spawns on the snake, it tries again
+        if self.food in self.snake:
             self._place_food()
 
-#MAIN GAME STEP
+
     def play_step(self, action):
         self.frame_iteration += 1
-        # 1. Collects user input and handles window close
+        # 1. collect user input
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 quit()
         
-        # 2. Moves the snake based on AI's action
+        # 2. move
         self._move(action) # update the head
         self.snake.insert(0, self.head)
         
-        # 3. Check if game over (for a collison)
+        # 3. check if game over
         reward = 0
         game_over = False
         if self.is_collision() or self.frame_iteration > 100*len(self.snake):
             game_over = True
-            reward = -10 #Returns -10 reward if game ends
+            reward = -10
             return reward, game_over, self.score
 
-        # 4. Place new food or just move
+        # 4. place new food or just move
         if self.head == self.food:
             self.score += 1
-            reward = 10 #If food is eaten, increase score and reward
+            reward = 10
             self._place_food()
         else:
             self.snake.pop()
         
-        # 5. Updates display and returns current state
+        # 5. update ui and clock
         self._update_ui()
         self.clock.tick(SPEED)
-
-        # 6. Return game over and score
+        # 6. return game over and score
         return reward, game_over, self.score
 
-    #COLLISON CHECK
+
     def is_collision(self, pt=None):
         if pt is None:
             pt = self.head
@@ -123,25 +122,24 @@ class SnakeGameAI:
         self.display.blit(text, [0, 0])
         pygame.display.flip()
 
-    #Snake Movement via AI Action
+
     def _move(self, action):
         # [straight, right, left]
 
         clock_wise = [Direction.RIGHT, Direction.DOWN, Direction.LEFT, Direction.UP]
         idx = clock_wise.index(self.direction)
 
-        if np.array_equal(action, [1, 0, 0]): #go straight
+        if np.array_equal(action, [1, 0, 0]):
             new_dir = clock_wise[idx] # no change
-        elif np.array_equal(action, [0, 1, 0]): #turn right
+        elif np.array_equal(action, [0, 1, 0]):
             next_idx = (idx + 1) % 4
             new_dir = clock_wise[next_idx] # right turn r -> d -> l -> u
-        else: # [0, 0, 1] #turn left
+        else: # [0, 0, 1]
             next_idx = (idx - 1) % 4
             new_dir = clock_wise[next_idx] # left turn r -> u -> l -> d
-        
-        #Update snake direction
+
         self.direction = new_dir
-        #Update the coordinates of food based on direction
+
         x = self.head.x
         y = self.head.y
         if self.direction == Direction.RIGHT:
